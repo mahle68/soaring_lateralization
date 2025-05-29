@@ -1,23 +1,23 @@
-# script for calculating migration metrics for Safi et al 2025.
-# Elham Nouani, PhD. 
-# 05.11.2024, Konstanz, DE
+#Script for preparing daily metrics for Safi et al 2025.
+#This script calculating migration metrics for analysis in 04_data_analysis.r
+#Elham Nouarni, PhD.  elham.nourani@unil.ch
+
+
+#inputs: "your_path/your_downloaded_gps_data.rds" (from 02_wind_annotation.r), "updated_life_cycle_nov24.rds" (from Edmond repository), "EGM96_us_nga_egm96_15.tif" (from Edmond repository), "your_path/your_processed_acc_data.rds" (from 01_imu_processing.r)
+#output: "your_path/your_hourly_migration_metrics.rds"
 
 library(move2)
 library(sf)
 library(terra)
 
 #---------------------------------------------------------------------------------
-## Step 0: Download all GPS data                                             #####
+## Step 1: Add life stage                                                    #####
 #---------------------------------------------------------------------------------
 
 #GPS data was downloaded in 02_wind_annotation.r
 gps <- readRDS("your_path/your_downloaded_gps_data.rds")
 
-#---------------------------------------------------------------------------------
-## Step 1: Add life stage                                                    #####
-#---------------------------------------------------------------------------------
-
-#life-cycle stages from L03a_tests_per_day.r
+#life-cycle stages from Edmond repository
 life_cycle <- readRDS("updated_life_cycle_nov24.rds")
 
 #open gps data. make a unique ID for each ind-day combo. for speed, etc. calculations.
@@ -45,15 +45,12 @@ gps_no_winter <- gps %>%  #2022-09-25 07:56:41.0000 to 2024-04-15 10:02:33.0000
   filter(!(life_stage %in% c("wintering", "pre-fledging"))) %>% 
   as.data.frame()
 
-#saveRDS(gps_no_winter, file = "gps_data_LS_no_winter.rds")
-
-
 #---------------------------------------------------------------------------------
 ## Step 2: Calculate daily distance, and flight altitude                    #####
 #---------------------------------------------------------------------------------
 
-#open geoid layer for calculating flight altitude
-geo <- rast("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/GIS_files/EGM96_us_nga_egm96_15.tif")
+#open geoid layer for calculating flight altitude. This is included in the Edmond repository
+geo <- rast("EGM96_us_nga_egm96_15.tif")
 
 #filter the data for 1 hour. find days that have 12-14 hours of data. Calculate daily distance as the sum of hourly distances for the day.
 gps_1hr <- gps_no_winter %>% 
@@ -81,17 +78,12 @@ gps_1hr <- gps_no_winter %>%
          daily_max_altitude = max(height_msl, na.rm = T)) %>% 
   ungroup() 
 
-#saveRDS(gps_1hr, file = "gps_data_LS_migr_metrics.rds") #this is an sf object. it has one row per hour, but also the daily summaries
-
 #---------------------------------------------------------------------------------
 ## Step 3: Calculate daily VeDBA                                             #####
 #---------------------------------------------------------------------------------
 
-#open acc data prepared in 01b_imu_processing.r
-#this is mean odba and vedba for each row (1.2 seconds) of data
-#acc_g <- readRDS("all_acceleration_g_dba_apr_24.rds") %>% 
+#open acc data prepared in 01b_imu_processing.r which includes the mean odba and vedba for each row (1.2 seconds) of data
 
-#open the acc data prepared in 01_imu_processing.r Step 1
 acc_g <- readRDS("your_path/your_processed_acc_data.rds") %>% 
   mutate(unique_date = as.Date(timestamp),
          ind_day = paste0(individual_local_identifier, "_", as.character(unique_date)))
@@ -120,9 +112,6 @@ acc_migr <- acc_g %>%
   slice(1) %>%#just keep one row per hour 
   ungroup()
 
-#saveRDS(acc_migr, file = "migr_vedba.rds")
-
-
 #append to the gps data summarized for migration period
 migr_hourly <- gps_1hr %>% #this is an sf object. keep the lat and long
   mutate(location_long = st_coordinates(.)[,1],
@@ -135,8 +124,6 @@ migr_hourly <- gps_1hr %>% #this is an sf object. keep the lat and long
                                        daily_mean_vedba, daily_max_vedba, daily_min_vedba, daily_IQR_vedba)) %>% 
   as.data.frame()
 
-#write to file. This file will be used in 04_data_analysis.r Step 2 to analyse how lateraliztion impacts daily migration performance
-saveRDS(migr_hourly, file = "your_path/hourly_migration_metrics_gps_vedba.rds")
-
-#saveRDS(migr_hourly, file = "hourly_migr_metrics_gps_vedba.rds") 
+#write to file. This file will be used in 04_data_analysis.r Step 2 to analyse how lateralization impacts daily migration performance
+saveRDS(migr_hourly, file = "your_path/your_hourly_migration_metrics.rds")
 

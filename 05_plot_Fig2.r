@@ -1,6 +1,9 @@
-# script for plotting the laterality in the Finnish population of honey buzzards.
-# Elham Nouani, PhD. 
-# 21.11.2024, Konstanz, DE
+# script for plotting Fig 2 in Safi et al 2025
+# Elham Nouani, PhD. elham.nourani@unil.ch
+
+
+#input: "updated_life_cycle_nov24.rds" (from Edmond repository), "your_path/your_downloaded_gps_data.rds" (from 02_wind_annotation.r), "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds" (from 03a_data_prep_bursts.r & provided in the Edmond repository)
+#output: Fig 2 panels a & b
 
 library(tidyverse)
 library(lubridate)
@@ -9,10 +12,8 @@ library(ggridges)
 library(rnaturalearth)
 library(ggh4x) # devtools::install_github("teunbrand/ggh4x") #allows modifying colors of facets in ggplot
 
-setwd("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/R_files/")
-
 #---------------------------------------------------------------------------------
-## Step 1: The MAP (Fig 2a   )                                               #####
+## Step 1: The MAP (Fig 2a)                                                  #####
 #---------------------------------------------------------------------------------
 
 #### ----------------------- open GPS data and clean up & annotate with life-stage
@@ -128,9 +129,6 @@ manual_orders <- c("D329_015", "D326_193", "D163_696", "D225_232", "D329_012",
                    "D225_236", "D329_014", "D225_231","D299_269", "D320_474", "D321_345", "D225_226", "D225_234", "D321_584", 
                    "D323_154","D311_750", "D321_348", "D321_349", "D323_155", "D324_510","D225_227", "D225_228", 
                    "D299_270", "D299_271", "D320_475","D321_583" ,"D324_511", "D324_512", "D324_513", "D326_192", "D329_013")
-
-
-
 
 # Reorder the factor levels of individual_local_identifier
 filtered_w_LI$individual_local_identifier <- factor(filtered_w_LI$individual_local_identifier, 

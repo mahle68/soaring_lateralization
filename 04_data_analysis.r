@@ -1,6 +1,9 @@
 # script for analyzing the data for Safi et al 2025
 # Data analysis is done at two scales: 8-second bursts (year-round) and daily (only during migration)
-# Elham Nourani, PhD. enourani@ab.mgp.de
+# Elham Nourani, PhD. elham.nourani@unil.ch
+
+#inputs: "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds" (from 03a_data_prep_bursts.r & available from the Edmond repository), "your_path/your_hourly_migration_metrics.rds" (from 03b_data_prep_days.r)
+#outputs: Fig 3 all panels. Extended Data Figure 1. Extended Data Table 1
 
 library(tidyverse)
 library(corrr)
@@ -10,7 +13,6 @@ library(patchwork)
 library(terra)
 library(xtable)
 
-setwd("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/R_files/")
 
 #---------------------------------------------------------------------------------
 ## Step 1: Is laterality more likely when the task is difficult?             #####
@@ -32,8 +34,6 @@ circling_data <- filtered_w_LI %>%
             list(z = ~scale(.))) %>% 
   as.data.frame()
 
-#saveRDS(circling_data, file = "thinned_laterality_for_modeling5.rds")
-
 #### ----------------------- look at multi-collinearity
 
 circling_data %>% 
@@ -45,11 +45,9 @@ circling_data %>%
 
 #### ----------------------- model: binomial logistic regression with inla
 
-#circling_data <- readRDS("thinned_laterality_for_modeling4.rds")
+#create new data: to make predictions for values that fall on a regular grid for visualization of interaction terms
 
-#create new data: make predictions for values that fall on a regular grid for optimal visualization 
-
-#to make sure the predictions cover the parameter space, create a dataset with all possible combinations. The max of the variables might be outliers, so use the 90% quantile instead
+#to make sure the predictions cover the parameter space, create a dataset with all possible combinations. The max of the variables might be outliers, so use the 99% quantile instead
 grd_pitch_yaw <- expand.grid(x = seq(from = quantile(circling_data$mean_pitch_mean, .01, na.rm = T), to = max(circling_data$mean_pitch_mean, na.rm = T),  length.out = 50),
                              y = seq(from = min(circling_data$abs_cum_yaw, na.rm = T), to = quantile(circling_data$abs_cum_yaw, .99, na.rm = T),  length.out = 50)) %>% 
   rename(mean_pitch_mean = x,
@@ -96,20 +94,16 @@ data <- circling_data %>%
          lat_group = inla.group(location_lat_closest_gps_raw_z, n = 10, method = "quantile"))  
 
 
-#re-order life stage, so that post-fledging is first
+#re-order life stage, so that post-fledging is the reference level
 data$life_stage <- factor(data$life_stage, levels = c("post-fledging", "migration", "wintering"))
 
-
-#saveRDS(data, file = "thinned_laterality_for_modeling_w_new_data4.rds")
-
-#data <- readRDS("thinned_laterality_for_modeling_w_new_data4.rds")
-
+#### build the model -----------------------
 m_inla <- inla(laterality_bi ~ 1 + mean_pitch_mean_z * abs_cum_yaw_z * wind_speed_z + 
-                 f(individual_local_identifier, mean_pitch_mean_z, model = "iid") +  
-                 f(individual_local_identifier2, abs_cum_yaw_z, model = "iid") + 
-                 f(individual_local_identifier3, wind_speed_z, model = "iid") + 
-                 f(age_group, model = "rw1"),
-               data = data, family = "binomial",
+                 f(individual_local_identifier, mean_pitch_mean_z, model = "iid") +  #random effect on the slope 
+                 f(individual_local_identifier2, abs_cum_yaw_z, model = "iid") + #random effect on the slope
+                 f(individual_local_identifier3, wind_speed_z, model = "iid") + #random effect on the slope
+                 f(age_group, model = "rw1"), #smooth term for age
+               data = data, family = "binomial", #run the model as a binomial logistic regression
                control.compute = list(cpo = TRUE),
                control.predictor = list(link = 1, compute = TRUE)) #compute=t means that NA values will be predicted
 
@@ -188,8 +182,6 @@ smooth_effects <- m_inla$summary.random$age_group %>%
 # Plot the smooth term....
 X11(width = 3.42, height = 2)
 (s <- ggplot(smooth_effects, aes(x = age, y = mean)) +
-    #geom_rect(data = population_migr_period, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), 
-    #          fill="black", alpha=0.1, inherit.aes = FALSE) + #add migration period
     geom_line(color = "#0d0887", linewidth = 0.4) +
     geom_ribbon(aes(ymin = `0.025quant`, ymax = `0.975quant`), fill = "#0d0887", alpha = 0.12) +
     geom_hline(yintercept = 0, linetype="dashed", 
@@ -209,21 +201,20 @@ X11(width = 3.42, height = 2)
           axis.title.x = element_text(margin = margin(t = 2)))
 )
 
-#combine the two plots to make the multi-panel plot for all models
+#combine the two plots to make the multi-panel plot for the coefficients and the smooth term
 X11(width = 6.7, height = 2)
 model_output_p <- grid.arrange(coefs, s, nrow = 1, widths = c(0.6, 0.4))
 
 #### individual-specific coefficients plot (Extended Data Fig 1) -----------------------------------------------------------------------------
 
-#extract handedness for each individual. to use for coloring. 
+#extract laterality for each individual. to use for coloring. 
 handedness <- circling_data %>% 
   group_by(individual_local_identifier) %>% 
   slice(1) %>% 
   ungroup() %>% 
   select(individual_local_identifier, laterality_dir_ind)
 
-
-#extract random effects,  ID is for the unique individuals
+#extract random effects, ID is for the unique individuals
 #mean_pitch_mean_z
 random_effects_pitch <- m_inla$summary.random$individual_local_identifier
 
@@ -232,9 +223,6 @@ random_effects_yaw <- m_inla$summary.random$individual_local_identifier2
 
 #wind_speed_z
 random_effects_wind <- m_inla$summary.random$individual_local_identifier3
-
-#extract unique individual IDs from original data
-#ind_IDs <- unique(data$individual_local_identifier)
 
 pitch <- random_effects_pitch %>% 
   mutate(coef = mean + graph %>% filter(Factor == "mean_pitch_mean_z") %>% pull(Estimate),
@@ -314,35 +302,33 @@ preds <- data.frame(yaw = data[na_rows,"abs_cum_yaw"],
 
 #plot
 
-(pred_py <- preds %>% 
-    ggplot() +
-    geom_tile(aes(x = x, y = y, fill = preds)) +
-    scale_fill_gradientn(#colors = c("#440154FF", "#39568CFF" ,"#20A387FF", "#83e22b", "#FDE725FF"),
-      #colors = c("#0d0887", "#7e03a8" ,"#cc4778", "#f89540", "#f0f921"),
-      colors = c("#0d0887", "#7e03a8", "white" ,"#d5546e", "#fdae32", "#f0f921"),
-      values = c(0, 0.3, 0.5, 0.6, 0.7, 1),
-      limits = c(0, 1),
-      na.value = "white",
-      name = "Probability\n of laterality") +
-    guides(fill = guide_colourbar(title.vjust = 2.5)) + # the legend title needs to move up a bit
-    labs(x = "Absolute total yaw", y = "Average pitch") +
-    ggtitle("c") +
-    theme_classic() +
-    theme(plot.margin = margin(0, 6, 0, 0, "pt"),
-          text = element_text(size = 8),
-          legend.direction="vertical",
-          legend.position = "right",
-          legend.key.width=unit(.2,"cm"),
-          legend.key.height=unit(.4,"cm"),
-          legend.text = element_text(size = 8),
-          legend.title = element_text(size = 8),
-          plot.title = element_text(face = "bold"), # make title bold
-          panel.grid.minor = element_line(color = "white"),
-          axis.title.x = element_text(margin = margin(t = 2))) + # increase distance between x-axis values and title
-    scale_x_continuous(expand = c(0, 0)) + #remove space between the raster and the axis
-    scale_y_continuous(expand = c(0, 0))
-)
-
+pred_py <- preds %>% 
+  ggplot() +
+  geom_tile(aes(x = x, y = y, fill = preds)) +
+  scale_fill_gradientn(#colors = c("#440154FF", "#39568CFF" ,"#20A387FF", "#83e22b", "#FDE725FF"),
+    #colors = c("#0d0887", "#7e03a8" ,"#cc4778", "#f89540", "#f0f921"),
+    colors = c("#0d0887", "#7e03a8", "white" ,"#d5546e", "#fdae32", "#f0f921"),
+    values = c(0, 0.3, 0.5, 0.6, 0.7, 1),
+    limits = c(0, 1),
+    na.value = "white",
+    name = "Probability\n of laterality") +
+  guides(fill = guide_colourbar(title.vjust = 2.5)) + # the legend title needs to move up a bit
+  labs(x = "Absolute total yaw", y = "Average pitch") +
+  ggtitle("c") +
+  theme_classic() +
+  theme(plot.margin = margin(0, 6, 0, 0, "pt"),
+        text = element_text(size = 8),
+        legend.direction="vertical",
+        legend.position = "right",
+        legend.key.width=unit(.2,"cm"),
+        legend.key.height=unit(.4,"cm"),
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8),
+        plot.title = element_text(face = "bold"), # make title bold
+        panel.grid.minor = element_line(color = "white"),
+        axis.title.x = element_text(margin = margin(t = 2))) + # increase distance between x-axis values and title
+  scale_x_continuous(expand = c(0, 0)) + #remove space between the raster and the axis
+  scale_y_continuous(expand = c(0, 0))
 
 
 ## wind:yaw----------------------------------------------------------------
@@ -436,7 +422,7 @@ X11(width = 6.7, height = 2)
 combined <- pred_py + pred_wy + pred_wp & theme(legend.position = "right")
 (p <- combined + plot_layout(guides = "collect", nrow = 1))
 
-#combine panels into a multi-panel figure:
+#combine panels into a multi-panel figure in gimp:
 #https://theplosblog.plos.org/2019/12/multi-panel-figures-using-gimp-to-combine-individual-images-for-use-in-plos-articles/
 
 #---------------------------------------------------------------------------------
@@ -448,15 +434,13 @@ combined <- pred_py + pred_wy + pred_wp & theme(legend.position = "right")
 #Calculate the daily summaries for pitch, yaw, and wind. Then append GPS- and ACC- derived variables (from 03b_data_prep_days.r)
 
 ##open migration data from 03b_data_prep_days.r
-migr_hrly <- readRDS("your_path/hourly_migration_metrics_gps_vedba.rds") #this file is not provided. but can be reproduced by following the previous scripts
-
-#migr_hrly <- readRDS("hourly_migr_metrics_gps_vedba.rds")
+migr_hrly <- readRDS("your_path/your_hourly_migration_metrics.rds")
 
 #extract days of migration
 migr_days <- migr_hrly %>% 
   distinct(ind_day)
 
-#calculate hourly and daily summaries for wind using the imu, then append migration dataframe
+#calculate hourly and daily summaries for wind using the imu, then append migration dataframe (cricling_data was created in Step 1)
 migr_hrly_w <- circling_data %>% 
   mutate(ind_day =  paste0(individual_local_identifier, "_", as.character(unique_date))) %>% 
   filter(ind_day %in% migr_days$ind_day) %>%  #subset for days in the migration data 
@@ -474,12 +458,8 @@ migr_hrly_w <- circling_data %>%
          daily_max_cum_yaw = max(abs_cum_yaw, na.rm = T),
          daily_mean_cum_yaw = mean(abs_cum_yaw, na.rm = T),
          daily_max_mean_pitch = max(mean_pitch_mean, na.rm = T),
-         daily_mean_mean_pitch = mean(mean_pitch_mean, na.rm = T),
-         #I have already calculated daily LI, but in the previous round, I used mode of laterality in the models. so calculate the mode for making comparisons.
-         #mode_laterality = getmode(laterality_dir)
-  ) %>% 
+         daily_mean_mean_pitch = mean(mean_pitch_mean, na.rm = T)) %>% 
   ungroup() %>% 
-  #select(4, 42, 59, 64, 69:74, 85:98) %>% 
   select("individual_local_identifier", "days_since_tagging", "unique_date", "life_stage", "laterality_bank_day", "laterality_dir_day", "laterality_bank_stage", "laterality_dir_stage", 
          "laterality_bank_ind","laterality_dir_ind", "location_lat_closest_gps_raw_z", "ind_day", "dt_1hr", "hrly_mean_wind_speed", "hrly_mean_cum_yaw", "hrly_max_cum_yaw", "hrly_max_mean_pitch", "hrly_mean_mean_pitch" ,
          "daily_max_wind", "daily_mean_wind", "daily_max_cum_yaw", "daily_mean_cum_yaw", "daily_max_mean_pitch","daily_mean_mean_pitch") %>% 
@@ -489,7 +469,6 @@ migr_hrly_w <- circling_data %>%
   left_join(migr_hrly) %>% 
   as.data.frame()
 
-#saveRDS(migr_hrly_ww, file = "data_migration_performance_models_2min_hrly2.rds") #this only has days that have laterality info
 
 migr_daily_w <- migr_hrly_w %>% #ww: wind
   select(-contains("hrly")) %>%  #remove hourly data
@@ -499,8 +478,6 @@ migr_daily_w <- migr_hrly_w %>% #ww: wind
   mutate(laterality_dir_day = as.character(laterality_dir_day), #convert to character, so that"ambidextrous" is the reference level
          laterality_bi_day = ifelse(laterality_dir_day == "ambidextrous", 0, 1)) %>% 
   as.data.frame()
-
-#saveRDS(migr_daily_ww, file = "data_migration_performance_models_2min_daily2.rds") #this only has days that have laterality info
 
 ### Model migration performance as a function of laterality -----------------------------------------------------
 
@@ -522,11 +499,13 @@ data_m %>%
   filter(abs(r) > 0.5) #correlated: mean and max wind, max cum yaw and mean cum yaw, daily distance an average speed, mean vedba and IQR vedba; max and avg altitude;
 # sd of vertical speed with avg altitude (0.57) and max altitude (0.64)
 
-#model separately for daily_mean_vedba, daily_max_altitude, daily_distance, daily_mean_cum_yaw, daily_mean_mean_pitch, daily_max_altitude
+#model separately for daily_mean_vedba, daily_max_altitude, daily_distance, daily_mean_cum_yaw, daily_mean_mean_pitch, daily_max_altitude.
+#create a character vector to use in the model formula
 response_vars <- c( "daily_distance", "daily_max_altitude",
                     "daily_mean_vedba", "daily_mean_cum_yaw", 
                     "daily_mean_mean_pitch")
 
+#prepare character vector to be used for naming the plot panels
 response_names <- c(
   expression(atop(bold("f") * phantom("                             "), "Daily distance (km)")),
   expression(atop(bold("g") * phantom("                                  "), "Max flight altitude (m)")),
@@ -535,6 +514,7 @@ response_names <- c(
   expression(atop(bold("j") * phantom("                        "), "Avg pitch (deg)"))
 )
 
+#for each response variable, build a linear model, extract coefficients in latex format, plot the coefficient plot
 plots_ls <- lapply(1:length(response_vars), function(response){
   
   #model formula
@@ -546,8 +526,7 @@ plots_ls <- lapply(1:length(response_vars), function(response){
                  control.compute = list(cpo = TRUE),
                  control.predictor = list(link = 1, compute = TRUE)) #compute=t means that NA values will be predicted
   
-  # coefficients plot 
-  # posterior means of coefficients
+  # extract coefficients 
   graph <- as.data.frame(summary(m_inla)$fixed)
   colnames(graph)[which(colnames(graph)%in%c("0.025quant","0.975quant"))]<-c("Lower","Upper")
   colnames(graph)[which(colnames(graph)%in%c("0.05quant","0.95quant"))]<-c("Lower","Upper")
@@ -579,7 +558,7 @@ plots_ls <- lapply(1:length(response_vars), function(response){
   
   #plot the coefficients -----------
   
-  #remove intercept for better visualization. 
+  #remove intercept for better visualization. The intercepts will be reported in the table
   graph <- graph[-1,]
   
   ggplot(graph, aes(x = Estimate, y = Factor)) +

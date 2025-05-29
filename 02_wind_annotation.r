@@ -1,6 +1,9 @@
-# script for downloading and preparing the wind data for Safi et al 2025.
-# each GPS point will be associated with the wind speed at that location in the closest hour
-# Elham Nourani, PhD. enourani@ab.mgp.de
+#Script for downloading and preparing the wind data for Safi et al 2025.
+#Each GPS point will be associated with the wind speed at that location in the closest hour
+#Elham Nourani, PhD. elham.nourani@unil.ch
+
+#input: GPS data is downloaded from Movebnak(https://www.movebank.org); Wind data is downloaded from the Copernicus Data Store(https://cds.climate.copernicus.eu/)
+#output: "your_path/your_downloaded_gps_data.rds", "your_path/your_annotated_gps.rds"
 
 library(tidyverse)
 library(lubridate)
@@ -8,8 +11,6 @@ library(terra)
 library(sf)
 library(ncdf4)
 library(parallel)
-
-setwd("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/R_files/")
 
 #---------------------------------------------------------------------------------
 ## Step 0: Download all GPS data                                             #####
@@ -20,17 +21,14 @@ setwd("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projec
 
 #creds <- movebank_store_credentials(username = "your_user_name", rstudioapi::askForPassword())
 
-creds <- movebank_store_credentials(username = "mahle68", rstudioapi::askForPassword())
-HB_id <- movebank_get_study_id("European Honey Buzzard_Finland")
-
 movebank_retrieve(study_id = 2201086728, entity_type= "tag_type")
 
 gps <- movebank_retrieve(study_id = 2201086728, sensor_type_id = "gps",   #download data for all individuals 
                          entity_type = "event",  attributes = "all",
                          timestamp_end = as.POSIXct("2024-04-15 00:00:00"))
 
-#saveRDS(gps, file = "data/all_gps_apr15_24.rds")
-
+#write to file. Will be used in 03b_data_prep_days.r
+saveRDS(gps, file = "your_path/your_downloaded_gps_data.rds")
 
 #---------------------------------------------------------------------------------
 ## Step 1: prepare tracking data                                             #####
@@ -53,24 +51,16 @@ all_gps_ls <- split(all_gps_apr, all_gps_apr$yr)
 ## Step 2: extract wind u and v for each point                               #####
 #---------------------------------------------------------------------------------
 
-#This step was done when CDS API was not functioning, so no code is provided for data download. The data were downloaded manually from the website (see download request at the end of script).
-#one file was downloaded per year in the netcdf format
+#This step was done when CDS API was not functioning, so no code is provided for data download. 
+#The data were downloaded manually from the website (see download request at the end of script) and one netcdf file was saved per year (2022,2023,2024)
 
 #list the downloaded files
 nc_files <- list.files("path_to_your_files", pattern = ".nc", full.names = T)
 
-#decide on an output directory
-
+#decide on an output directory to save the annotated files
 output_path <- "path_to_your_output_dir/"
 
-#list nc files
-#nc_files <- list.files("/home/mahle68/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/data/laterality_annotations/WIND_FROM_CDS",
-#                       pattern = ".nc", full.names = T)
-
-#output_path <- "/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/data/all_gps_apr24_wind_annotated/"
-
-#go over each nc file one by one
-
+#go over each nc file
 lapply(all_gps_ls, function(x){
   
   #extract the year
@@ -84,7 +74,7 @@ lapply(all_gps_ls, function(x){
   v <- nc_files[grep(yr, nc_files)] %>% 
     rast("v")
   
-  #for some reason I can't extract time using the terra::time() function. Extract the time from the layer names
+  #I couldn't extract time using the terra::time() function, so I'm extracting them from the layer names
   times <- names(u) %>%
     str_split("time=") %>%
     map_chr(2)
@@ -101,27 +91,25 @@ lapply(all_gps_ls, function(x){
   names(v) <- paste0("v_900_", timestamp)
   
   ########### split the tracking data into unique hours #####
-  
   x_ls <- split(x, x$closest_hr)
   
   # Define the number of cores to use
-  num_cores <- detectCores() - 10 #run on 2 cores
+  num_cores <- detectCores() - 10 #run on 2 cores (my machine has 12. adjust based on your machine). keep in mind the available RAM when deciding on the number of cores.
   
   wind_this_yr <- mclapply(x_ls, function(y){ #for each hour
     
-    #extract the unique hourc
+    #Extract the unique hour
     unique_hr <- y$closest_hr[1]
     
-    # Check whether there is any wind data for this hour
+    #Check whether there is any wind data for this hour
     if (any(str_detect(names(u), unique_hr))) {
       # Extract the corresponding rasters
       wind <- c(
         u[[str_which(names(u), unique_hr)]],
         v[[str_which(names(v), unique_hr)]]
       )
-      #names(wind) <- c("u_900", "v_900")
       
-      # Convert tracking data to SpatVector
+      # Convert tracking data to a SpatVector
       y_vec <- vect(y, geom = c("location_long", "location_lat"), crs = "EPSG:4326")
       
       # Extract values for each point and append directly to y
@@ -149,7 +137,6 @@ lapply(all_gps_ls, function(x){
   saveRDS(wind_this_yr, file = paste0(output_path,"gps_annotated_", yr, ".rds"))
   
 })
- #1.8 hours for three years
 
 #---------------------------------------------------------------------------------
 ## Step 3: put all files together and calculate wind speed                   #####
@@ -162,8 +149,8 @@ ann_ls <- list.files("path_to_your_output_dir/", full.names = T) %>%
   select(1:48) %>% 
   mutate(wind_speed =  sqrt(u_900^2 + v_900^2))
 
-
-#saveRDS(ann_ls, file = "/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/data/all_gps_apr15_24_wind.rds")
+#save to file. This will be used in 03a_data_prep_bursts.r
+saveRDS(ann_ls, file = "your_path/your_annotated_gps.rds")
 
 #----------------------------------------------------- 
 # ## This step was done by downloading the data from the gui with the following request. The same request can be made through the API

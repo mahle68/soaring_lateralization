@@ -1,12 +1,9 @@
-#script for calculating Euler angles from quaterions provided by eobs.
-#Apr. 08.2024. Elham Nourani, PhD.
+#functions for calculating Euler angles from quaterions provided by e-obs tags
+#plus a few functions for reformatting and summarizing imu data (specific to the format of data from e-obs tags)
 
 
-#library(tidyverse)
 
-# STEP 1: write some functions #####
-
-#define a function to process quaternions in eobs format (eobs specific) 
+#function to process quaternions in eobs format (eobs specific) 
 process_quaternions <- function(quaternion_string, ftn) {
   #define a function to split up a vector of multiple quaternions into a list with each element as a vector of 4 floats (eobs specific) 
   vector_to_quat_ls <- function(x) {
@@ -36,15 +33,6 @@ strings_to_numeric <- function(angle_strings, ftn) { #input is multiple rows of 
   numeric_vec <- unlist(map(angle_strings, string_to_numeric))
   
   return(numeric_vec)
-  #numeric_vec <- str_split(angle_string, " ")[[1]] %>%
-  #  as.numeric()
-  
-  #result <- numeric_vec %>%
-  #  map(ftn) %>%
-  #  unlist() %>%
-  #  as.character()
-  
-  #return(str_c(result, collapse = " "))
 }
 
 #function to calculate the statistical mode
@@ -117,8 +105,6 @@ DBA_ftn <- function(acc_string, axes = 3) {
   # Return the results as a named vector
   return(c(VeDBA = VeDBA, ODBA = ODBA))
 }
-
-#the following functions are from Kami's IMU_conversion.r
 
 #define a function for converting raw quaternion values mathematically from integers to floats (based on eobs manual) 
 .convertEobs <- function(x){
@@ -193,15 +179,3 @@ get.yaw <- function(x, type=c("eobs", "quaternion")) {
   }
   return(yawAngle)
 }
-
-# # STEP 2: apply to eobs data #####
-# #open sample data for one individual
-# sample_data <- read.csv("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/R_files/matched_GPS_IMU/matched_gps_orientation/D163_696_quat_mag_w_gps.csv")
-# 
-# #calculate pitch, roll, and yaw
-# sample_data_quat <- sample_data %>%
-#   mutate(
-#     pitch = process_quaternions(orientation_quaternions_raw, ~ get.pitch(.x, type = "eobs")),
-#     yaw = process_quaternions(orientation_quaternions_raw, ~ get.yaw(.x, type = "eobs")),
-#     roll = process_quaternions(orientation_quaternions_raw, ~ get.roll(.x, type = "eobs"))
-#   )

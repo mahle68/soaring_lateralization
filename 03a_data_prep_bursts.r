@@ -1,6 +1,9 @@
-# script for preparing the data for Safi et al 2025.
-# this script prepares the IMU data (8-second bursts) for analysis in 04_data_analysis.r
-# Elham Nourani, PhD. enourani@ab.mgp.de
+#Script for preparing the data for Safi et al 2025.
+#This script prepares the IMU data (8-second bursts) for analysis in 04_data_analysis.r
+#Elham Nourani, PhD. elham.nourani@unil.ch
+
+#inputs: "your_path/your_processed_imu_data.rds" (from 01_imu_processing.r), "your_path/your_annotated_gps.rds" (from 02_wind_annotation.r), "updated_life_cycle_nov24.rds" (provided in Edmond repo)
+#output: "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds" (This file is also provided in the Edmond repository)
 
 library(tidyverse)
 library(lubridate)
@@ -11,14 +14,13 @@ setwd("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projec
 ## Step 1: Summarize per 8-sec burst                                         #####
 #---------------------------------------------------------------------------------
 
-#Start with data that was summarized for each second in 02_imu_processing.r
+#Start with data that was summarized for each second in 01_imu_processing.r
 #the aim of this step is to calculate summaries of the quaternion-derived angles for each 8-second burst
 #and to determine whether the individual was circling during a burst (based on total yaw) and the 
 #laterality index (based on total roll)
 
-
 #### ----------------------- Assign a unique burst id to each 8-second burst 
-seconds_summaries <- readRDS("quat_summaries_1sec_Jul24.rds") %>% 
+seconds_summaries <- readRDS("your_path/your_processed_imu_data.rds") %>% 
   drop_na(individual_local_identifier)
 
 #Add a new column with the number of rows of each imu_burst. We have roughly one second of data per row.
@@ -43,7 +45,6 @@ or_seconds_8_sec_id <- burst_n %>%
 
 #### ----------------------- Calculate summaries of angles and the laterality index for each 8-sec burst
 
-(start_time <- Sys.time())
 eight_sec <- or_seconds_8_sec_id %>% 
   #calculate direction of banking based on the roll angle. this will assign the direction for each second (each row)
   mutate(bank_direction = ifelse(cumulative_roll < 0, "left",
@@ -90,29 +91,23 @@ eight_sec <- or_seconds_8_sec_id %>%
   mutate(laterality_bi = ifelse(laterality_dir == "ambidextrous", 0, 1), 
          abs_cum_yaw = abs(cumulative_yaw_sum_8sec)) %>% 
   as.data.frame()
-(Sys.time() - start_time) #45 minutes
-
-#saveRDS(eight_sec, file = "matched_GPS_IMU/GPS_matched_or_w_summaries_8sec.rds")
 
 #---------------------------------------------------------------------------------
 ## Step 2: Environmental annotation                                          #####
 #---------------------------------------------------------------------------------
 
-#to match wind conditions and IMU data, the intermediate step was to annotate the GPS locations with wind speed (02_wind_annotation.r)
-#in this step, the closest GPS point to each IMU burst will be identified and the wind speed associated with that point will now be associated with the IMU burst
-
+#To match wind conditions and IMU data, the intermediate step is to annotate the GPS locations with wind speed (02_wind_annotation.r)
+#In this step, the closest GPS point to each IMU burst will be identified and the wind speed associated with that point will now be associated with the IMU burst
 
 #open gps data, matched with wind in 02_wind_annotation.r (a list with one element per year) and create one dataframe
-#gps_ls <- readRDS("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/data/all_gps_apr15_24_wind.rds") %>% 
-gps_ls <- ann_ls %>% 
+gps_ls <- readRDS("your_path/your_annotated_gps.rds") %>% 
   mutate(individual_local_identifier = as.character(individual_local_identifier)) %>% 
   arrange(individual_local_identifier) %>% 
   group_by(individual_local_identifier) %>% 
   group_split() %>% 
   map(as.data.frame)
 
-#create a list with one element for each individual
-#or_ls <- laterality_circling %>% 
+#Create a list with one element for each individual. fyi: in the naming of objects, "or" stands for "orientation"
 or_ls <- eight_sec %>% 
   mutate(individual_local_identifier = as.character(individual_local_identifier)) %>% 
   arrange(individual_local_identifier) %>% 
@@ -120,7 +115,7 @@ or_ls <- eight_sec %>%
   group_split() %>% 
   map(as.data.frame)
 
-# Define a function to find the closest GPS information and associate it with orientation data. Please note that the column names are hard-coded. modify to match your data.
+#Define a function to find the closest GPS point and associate it with orientation data. Please note that the column names are hard-coded. modify to match your data.
 find_closest_gps <- function(or_data, gps_data, time_tolerance = 60 * 60) {
   map_df(1:nrow(or_data), function(h) {
     or_row_time <- or_data[h, "start_timestamp"]
@@ -141,15 +136,13 @@ find_closest_gps <- function(or_data, gps_data, time_tolerance = 60 * 60) {
   })
 }
 
-#make sure the order of individuals is the same in the two lists
+#Make sure the order of individuals is the same in the two lists
 identical(sapply(gps_ls, function(x) x$individual_local_identifier[1]), sapply(or_ls, function(x) x$individual_local_identifier[1])) #should return TRUE
 
-# Run the function on the list of gps and list of imu. This will create a list of data frames with or data and associated GPS information
-(b <- Sys.time())
+#Run the function on the list of gps and list of imu. This will create a list of data frames with or data and associated GPS information
 or_w_gps <- map2(or_ls, gps_ls, ~ find_closest_gps(or_data = .x, gps_data = .y))
-Sys.time() - b # 23 mins
 
-#add a column comparing or and gps timestamps.
+#add a column comparing or and gps timestamps
 or_w_gps_df <- lapply(or_w_gps, function(x){
   x2 <- x %>% 
     mutate(imu_gps_timediff_sec = if_else(is.na(timestamp_closest_gps_raw), NA, difftime(start_timestamp, timestamp_closest_gps_raw, units = "mins") %>%  as.numeric()))
@@ -159,14 +152,11 @@ or_w_gps_df <- lapply(or_w_gps, function(x){
 
 sum(is.na(or_w_gps_df$location_long_closest_gps_raw)) #8573 there are still some rows that don't get assigned a gps location
 
-#remove the rows with no assigned gps
-saveRDS(or_w_gps_df, file = "annotated_gps_w_wind_public_prep.rds")
-
 #---------------------------------------------------------------------------------
 ## Step 3: Life stage annotation                                             #####
 #---------------------------------------------------------------------------------
 
-#life-cycle stages from L03a_tests_per_day.r
+#life-cycle stages are provided in the Edmond repository
 life_cycle <- readRDS("updated_life_cycle_nov24.rds")
 
 #add age as days since tagging, and assign life stage based on HMM analysis
@@ -188,22 +178,19 @@ or_w_gps_df_LS <- or_w_gps_df %>%
   ungroup() %>% 
   as.data.frame()
 
-#saveRDS(or_w_gps_df_LS, file = "laterality_w_gps_wind_LS_no_filter.rds")
-
 #---------------------------------------------------------------------------------
 ## Step 4: Data filtering                                                    #####
 #---------------------------------------------------------------------------------
 
-#open prepared data that has not been filtered yet.
-#levels of filtering:
-#1) only keep circling flight (MUST do before LI calculations at the daily, life stage, and individual levels)
+#Levels of filtering:
+#1) only keep circling flight (MUST do before Laterality Index (LI) calculations at the daily, life stage, and individual levels)
 #2) thin the data, so that the consecutive bursts are at least 2 min apart. (MUST do before LI calculations)
-#3)only keep data after fledging
+#3) only keep data after fledging
 
 
 or_w_gps_flt <- or_w_gps_df_LS%>% 
   
-  #FILTER: remove non-circling bursts
+  #------------------FILTER: remove non-circling bursts
   filter(circling_status == "circling") %>% 
   #calculate time lag between remaining bursts
   group_by(individual_local_identifier) %>% 
@@ -212,13 +199,12 @@ or_w_gps_flt <- or_w_gps_df_LS%>%
                                 difftime(start_timestamp, lag(start_timestamp), units = "secs") %>% as.numeric())) %>% 
   ungroup() %>% 
   
-  #FILTER: thin the data, so that the consecutive bursts are at least 2 min apart
+  #------------------FILTER: thin the data, so that the consecutive bursts are at least 2 min apart
   filter(time_lag_sec >= 120) %>% 
   
-  #FILTER: filter out pre-fledging
+  #------------------FILTER: filter out pre-fledging
   filter(life_stage != "pre-fledging") %>% 
   as.data.frame()
-
 
 #---------------------------------------------------------------------------------
 ## Step 5: Calculate laterality index for days, life stages, and inds        #####
@@ -281,10 +267,8 @@ filtered_w_LI <- or_w_gps_flt %>%
 filtered_w_LI$laterality_dir_day <- factor(filtered_w_LI$laterality_dir_day, levels = c("right_handed", "ambidextrous", "left_handed"))
 filtered_w_LI$laterality_dir_stage <- factor(filtered_w_LI$laterality_dir_stage, levels = c("right_handed", "ambidextrous", "left_handed"))
 
+#write to file. This file is also provided in the Edmond repository. It will be used in 04_data_analysis.r 
 saveRDS(filtered_w_LI, file = "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds")
-
-#saveRDS(filtered_w_LI, file = "thinned_laterality_w_gps_wind_all_filters2.rds")
-
 
 #---------------------------------------------------------------------------------
 ## Step 6: Life stage descriptive summaries                                  #####
@@ -294,7 +278,7 @@ saveRDS(filtered_w_LI, file = "thinned_laterality_w_gps_wind_all_filters2_public
 #individuals with incomplete tracks
 incomplete <- c("D329_015", "D326_193", "D324_513", "D320_474", "D299_270", "D299_269", "D225_236")
 
-#life-cycle stages from L03a_tests_per_day.r
+#life-cycle stages from Edmond repository
 life_cycle <- readRDS("updated_life_cycle_nov24.rds") %>% 
   mutate(age_at_first_expl = (first_exploration - as.Date(deployment_dt_utc.x)) + 30,
          in_natal = migration_start - first_exploration,
