@@ -22,14 +22,14 @@ The following scripts are included:
 
 **000_bonus_gps_processing.r** includes the workflow for downloading GPS data and using the high-resolution bursts to classify the flight types. This is not a necessary step for reproducing the results of the study, but can be useful for data exploration. 
 
-The following datasets are made available through the Edmond repository xyz
+The following datasets are made available in the Edmond repository xyz
 
-**"updated_life_cycle_nov24.rds"** includes the meta-data for each individual, including the timing of start of different life stages
+**"meta_data.rds"** includes the meta-data for each individual, including the timing of start of different life stages
 
-**"thinned_laterality_w_gps_wind_all_filters2_public_prep.rds"** includes the dataset ready for modeling following Step 1 of 04_data_analysis.r 
+**"imu_wind_laterality_bursts.rds"** includes the dataset ready for modeling following Step 1 of 04_data_analysis.r 
 
 **"EGM96_us_nga_egm96_15.tif"** geoid layer used for calculating flight altitude in Step 2 of 03b_data_prep_days.r 
 
-**"data_migration_performance_models_2min_daily2.rds"** contains daily migration metrics. ready for modeling following Step 2 of 04_data_analysis.r 
+**"migration_perfromance_days.rds"** contains daily migration metrics. ready for modeling following Step 2 of 04_data_analysis.r 
 
 The raw tracking data is stored on Movebank.or under DOI: xyz
