@@ -22,7 +22,7 @@ The following scripts are included:
 
 **000_bonus_gps_processing.r** includes the workflow for downloading GPS data and using the high-resolution bursts to classify the flight types. This is not a necessary step for reproducing the results of the study, but can be useful for data exploration. 
 
-The following datasets are made available in the Edmond repository xyz
+The following datasets are made available in the Edmond repository "soaring_lateralization_European_honey_buzzards" (https://doi.org/10.17617/3.HKLBET) :
 
 **"meta_data.rds"** includes the meta-data for each individual, including the timing of start of different life stages
 
@@ -32,4 +32,4 @@ The following datasets are made available in the Edmond repository xyz
 
 **"migration_perfromance_days.rds"** contains daily migration metrics. ready for modeling following Step 2 of 04_data_analysis.r 
 
-The raw tracking data is stored on Movebank.or under DOI: xyz
+The raw tracking data is stored on [ Movebank.org](https://www.movebank.org) under study name "European Honey Buzzard_Finland"
