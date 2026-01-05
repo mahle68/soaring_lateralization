@@ -10,6 +10,7 @@ library(lubridate)
 library(sf)
 library(ggridges)
 library(rnaturalearth)
+library(rnaturalearthdata)
 library(ggh4x) # devtools::install_github("teunbrand/ggh4x") #allows modifying colors of facets in ggplot
 
 #---------------------------------------------------------------------------------
@@ -17,15 +18,14 @@ library(ggh4x) # devtools::install_github("teunbrand/ggh4x") #allows modifying c
 #---------------------------------------------------------------------------------
 
 #### ----------------------- open GPS data and clean up & annotate with life-stage
-life_cycle <- readRDS("updated_life_cycle_nov24.rds") #this file is provided in the Edmond repository
+life_cycle <- readRDS("meta_data.rds") #this file is provided in the Edmond repository
 
-gps <- readRDS("your_path/your_downloaded_gps_data.rds") #file not provided. GPS data was downloaded in 02_wind_annotation.r
+gps <- readRDS("cleaned_gps_for_laterality_map.rds") #this file is provided in the Edmond repository: equivalent to GPS data downloaded in 02_wind_annotation.r, but with the addition of life cycle stages
 
 cleaned_gps <- gps %>% 
   #remove the points at (0,0) 
   filter(!(location_lat == 0 & location_long == 0)) %>% 
   mutate(unique_date = as.Date(timestamp)) %>% 
-  full_join(life_cycle %>% select(individual_local_identifier, deployment_dt_utc, first_exploration, migration_start, migration_end), by = "individual_local_identifier") %>% 
   #remove data before deployment
   filter(timestamp >= deployment_dt_utc) %>% 
   #hourly subset to make the next step go faster!
@@ -73,7 +73,7 @@ stage_colors <- c(
 )
 
 #make the flyway map
-X11(height = 4.09, width = 2.3)
+quartz(height = 4.09, width = 2.3)
 (flyway_map <- ggplot() +
     geom_sf(data = pol, fill = "gray20", col = "gray20") +
     geom_sf(data = world, fill = "white", col = "gray20", linewidth = 0.1) +
@@ -104,12 +104,14 @@ X11(height = 4.09, width = 2.3)
           plot.margin = margin(0, 0, 0, 0, "pt")) 
 )
 
+ggsave(flyway_map, filename = "flyway_map_jan26.pdf", device ="pdf", 
+       width = 2.3, height = 4.09, dpi = 600)
 #---------------------------------------------------------------------------------
 ## Step 2: Distribution of laterality index (Fig 2b)                         #####
 #---------------------------------------------------------------------------------
 
 #read in filtered data. this is not filtered for days since tagging. Data was prepared in 03a_data_prep_bursts.r
-filtered_w_LI <- readRDS("thinned_laterality_w_gps_wind_all_filters2_public_prep.rds") %>% #this file is provided in the Edmond repository
+filtered_w_LI <- readRDS("imu_wind_laterality_bursts.rds") %>% #this file is provided in the Edmond repository
   mutate(life_stage = factor(life_stage, levels = c("post-fledging", "migration", "wintering"))) #reorder life stage
 
 #reorder based on the value of lateralization during post-fledging
@@ -142,11 +144,11 @@ day_LI <- filtered_w_LI %>%
   slice(1)
 
 #density distributions
-X11(height = 4.09, width = 4.3)
+quartz(height = 4.09, width = 4.3)
 (p <- ggplot(day_LI, aes(x = laterality_bank_day, y = individual_local_identifier, color = laterality_dir_stage, fill = laterality_dir_stage)) +
     stat_density_ridges(quantile_lines = TRUE, rel_min_height = 0.01, alpha = 0.5,
-                        jittered_points = TRUE, 
-                        point_shape = "|", point_size = 1, point_alpha = 1, size = 0.2) +
+                        jittered_points = TRUE, linewidth = .4,
+                        point_shape = "|", point_size = 1, point_alpha = 1) +
     geom_vline(xintercept = 0, linetype = "dashed", color = "gray30", linewidth = 0.5) +
     scale_fill_manual(values = c("right_handed" =  "#0d0887", "ambidextrous" = "#fb9f3a", "left_handed" = "#9c179e"),
                       labels = c("Right", 
@@ -156,7 +158,7 @@ X11(height = 4.09, width = 4.3)
                        labels = c("Right", 
                                   "No bias",
                                   "Left")) +
-    scale_x_continuous(breaks = c(-1, 0, 1)) +
+    scale_x_continuous(limits = c(-1,1), breaks = c(-1, 0, 1)) +
     facet_wrap2(
       vars(life_stage), nrow = 1, scales = "free_x",
       strip = strip_themed(
@@ -175,8 +177,8 @@ X11(height = 4.09, width = 4.3)
       ))) +
     labs(x = "Laterality index",
          y = "Individual ID",
-         fill = "Lateralisation",
-         color = "Lateralisation") +
+         fill = "Lateralization",
+         color = "Lateralization") +
     ggtitle("b") +
     theme_classic() +
     theme(plot.margin = margin(0, 0, 0, 0, "pt"),
@@ -192,3 +194,8 @@ X11(height = 4.09, width = 4.3)
           legend.key.height=unit(.15,"cm"),
           legend.position = "right")
 )
+
+ggsave(p, filename = "/LI_distr_jan26.pdf", 
+       device = "pdf", width = 4.3, height = 4.09, dpi = 600)
+
+#multi-panel figure (plots flyway_map and p) was made using the GIMP software 
