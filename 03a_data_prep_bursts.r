@@ -2,7 +2,7 @@
 #This script prepares the IMU data (8-second bursts) for analysis in 04_data_analysis.r
 #Elham Nourani, PhD. elham.nourani@unil.ch
 
-#inputs: "your_path/your_processed_imu_data.rds" (from 01_imu_processing.r), "your_path/your_annotated_gps.rds" (from 02_wind_annotation.r), "updated_life_cycle_nov24.rds" (provided in Edmond repo)
+#inputs: "your_path/your_processed_imu_data.rds" (from 01_imu_processing.r), "your_path/your_annotated_gps.rds" (from 02_wind_annotation.r), "meta_data.rds" (provided in Edmond repo)
 #output: "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds" (This file is also provided in the Edmond repository)
 
 library(tidyverse)
@@ -156,7 +156,7 @@ sum(is.na(or_w_gps_df$location_long_closest_gps_raw)) #8573 there are still some
 #---------------------------------------------------------------------------------
 
 #life-cycle stages are provided in the Edmond repository
-life_cycle <- readRDS("updated_life_cycle_nov24.rds")
+life_cycle <- readRDS("meta_data.rds")
 
 #add age as days since tagging, and assign life stage based on HMM analysis
 or_w_gps_df_LS <- or_w_gps_df %>% 
@@ -278,7 +278,7 @@ saveRDS(filtered_w_LI, file = "thinned_laterality_w_gps_wind_all_filters2_public
 incomplete <- c("D329_015", "D326_193", "D324_513", "D320_474", "D299_270", "D299_269", "D225_236")
 
 #life-cycle stages from Edmond repository
-life_cycle <- readRDS("updated_life_cycle_nov24.rds") %>% 
+life_cycle <- readRDS("meta_data.rds") %>% 
   mutate(age_at_first_expl = (first_exploration - as.Date(deployment_dt_utc.x)) + 30,
          in_natal = migration_start - first_exploration,
          migr_dur = ifelse(individual_local_identifier %in% incomplete, NA, migration_end - migration_start)) %>% 

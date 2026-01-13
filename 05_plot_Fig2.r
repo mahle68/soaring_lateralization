@@ -2,7 +2,7 @@
 # Elham Nouani, PhD. elham.nourani@unil.ch
 
 
-#input: "updated_life_cycle_nov24.rds" (from Edmond repository), "your_path/your_downloaded_gps_data.rds" (from 02_wind_annotation.r), "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds" (from 03a_data_prep_bursts.r & provided in the Edmond repository)
+#input: "meta_data.rds" (from Edmond repository), "your_path/your_downloaded_gps_data.rds" (from 02_wind_annotation.r), "imu_wind_laterality_bursts.rds" (from 03a_data_prep_bursts.r & provided in the Edmond repository)
 #output: Fig 2 panels a & b
 
 library(tidyverse)
@@ -20,12 +20,13 @@ library(ggh4x) # devtools::install_github("teunbrand/ggh4x") #allows modifying c
 #### ----------------------- open GPS data and clean up & annotate with life-stage
 life_cycle <- readRDS("meta_data.rds") #this file is provided in the Edmond repository
 
-gps <- readRDS("cleaned_gps_for_laterality_map.rds") #this file is provided in the Edmond repository: equivalent to GPS data downloaded in 02_wind_annotation.r, but with the addition of life cycle stages
+ggps <- readRDS("your_path/your_downloaded_gps_data.rds") #file not provided. GPS data was downloaded in 02_wind_annotation.r
 
 cleaned_gps <- gps %>% 
   #remove the points at (0,0) 
   filter(!(location_lat == 0 & location_long == 0)) %>% 
   mutate(unique_date = as.Date(timestamp)) %>% 
+  full_join(life_cycle %>% select(individual_local_identifier, deployment_dt_utc, first_exploration, migration_start, migration_end), by = "individual_local_identifier") %>% 
   #remove data before deployment
   filter(timestamp >= deployment_dt_utc) %>% 
   #hourly subset to make the next step go faster!
@@ -43,7 +44,7 @@ cleaned_gps <- gps %>%
   )) %>% 
   ungroup() %>% 
   arrange(individual_local_identifier, timestamp) %>% 
-  as.data.frame()
+  
 
 #### ----------------------- plot
 # Load the world map using rnaturalearth
