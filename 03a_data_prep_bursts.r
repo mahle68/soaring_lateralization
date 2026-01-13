@@ -8,7 +8,6 @@
 library(tidyverse)
 library(lubridate)
 
-setwd("/home/enourani/ownCloud - enourani@ab.mpg.de@owncloud.gwdg.de/Work/Projects/HB_ontogeny_eobs/R_files/")
 
 #---------------------------------------------------------------------------------
 ## Step 1: Summarize per 8-sec burst                                         #####

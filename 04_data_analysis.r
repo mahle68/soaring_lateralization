@@ -19,7 +19,7 @@ library(xtable)
 #---------------------------------------------------------------------------------
 
 #read in filtered data. this is not filtered for days since tagging
-filtered_w_LI <- readRDS("thinned_laterality_w_gps_wind_all_filters2_public_prep.rds")
+filtered_w_LI <- readRDS("imu_wind_laterality_bursts.rds")
 
 
 #### ----------------------- filter for day since tagging and z-transform
@@ -29,7 +29,7 @@ circling_data <- filtered_w_LI %>%
   #filter for days since tagging. only keep the 
   filter(days_since_tagging < 284) %>% 
   #make sure to do all the filtering before scaling the variables!!!!
-  mutate_at(c("mean_roll_sd", "mean_yaw_mean", "mean_yaw_sd", "mean_pitch_mean" , "mean_pitch_sd", "cumulative_pitch_8sec", 
+  mutate_at(c("mean_roll_sd", "mean_yaw_mean", "mean_yaw_sd", "mean_pitch_mean" , "mean_pitch_sd", "cumulative_pitch_sum_8sec", 
               "abs_cum_yaw", "wind_speed", "days_since_tagging", "location_lat_closest_gps_raw"),
             list(z = ~scale(.))) %>% 
   as.data.frame()
@@ -37,7 +37,7 @@ circling_data <- filtered_w_LI %>%
 #### ----------------------- look at multi-collinearity
 
 circling_data %>% 
-  dplyr::select(c("mean_roll_sd", "mean_yaw_mean", "mean_yaw_sd", "mean_pitch_mean" , "mean_pitch_sd", "cumulative_pitch_8sec", 
+  dplyr::select(c("mean_roll_sd", "mean_yaw_mean", "mean_yaw_sd", "mean_pitch_mean" , "mean_pitch_sd", "cumulative_pitch_sum_8sec", 
                   "abs_cum_yaw", "days_since_tagging", "wind_speed", "location_lat_closest_gps_raw")) %>% 
   correlate() %>% 
   corrr::stretch() %>% 
@@ -86,6 +86,7 @@ grd_all <- bind_rows(grd_pitch_yaw, grd_wind_yaw, grd_wind_pitch) %>%
 
 #bin the age variable and append the new data
 data <- circling_data %>% 
+  mutate(days_since_tagging = as.numeric(days_since_tagging)) %>% 
   dplyr::select(c(intersect(colnames(grd_all), colnames(.)), "life_stage", "location_lat_closest_gps_raw_z")) %>% 
   full_join(grd_all) %>% 
   mutate(individual_local_identifier2 = individual_local_identifier, #repeat individual ID column to be used in the model formula for random effects
@@ -268,7 +269,7 @@ X11(width = 7, height = 8)
     geom_linerange(aes(xmin = lower, xmax = upper), size = 0.8, position = position_dodge(width = .7)) +
     scale_color_manual(values = c("left_handed" = "#9c179e" , "ambidextrous" = "#fb9f3a", "right_handed" =  "#0d0887"),
                        labels = c("Left", "No bias", "Right"),
-                       name = "Lateralisation") +
+                       name = "Lateralization") +
     scale_y_discrete(labels = levels(three_vars$ID)) +
     labs(x = "Estimate", y = "Individual ID") +
     theme_classic() +
@@ -440,7 +441,7 @@ migr_hrly <- readRDS("your_path/your_hourly_migration_metrics.rds")
 migr_days <- migr_hrly %>% 
   distinct(ind_day)
 
-#calculate hourly and daily summaries for wind using the imu, then append migration dataframe (cricling_data was created in Step 1)
+#calculate hourly and daily summaries for wind using the imu, then append migration dataframe (circling_data was created in Step 1)
 migr_hrly_w <- circling_data %>% 
   mutate(ind_day =  paste0(individual_local_identifier, "_", as.character(unique_date))) %>% 
   filter(ind_day %in% migr_days$ind_day) %>%  #subset for days in the migration data 

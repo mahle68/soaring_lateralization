@@ -18,7 +18,7 @@ library(terra)
 gps <- readRDS("your_path/your_downloaded_gps_data.rds")
 
 #life-cycle stages from Edmond repository
-life_cycle <- readRDS("updated_life_cycle_nov24.rds")
+life_cycle <- readRDS("meta_data.rds")
 
 #open gps data. make a unique ID for each ind-day combo. for speed, etc. calculations.
 gps_no_winter <- gps %>%  #2022-09-25 07:56:41.0000 to 2024-04-15 10:02:33.0000
