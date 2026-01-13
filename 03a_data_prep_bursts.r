@@ -3,7 +3,7 @@
 #Elham Nourani, PhD. elham.nourani@unil.ch
 
 #inputs: "your_path/your_processed_imu_data.rds" (from 01_imu_processing.r), "your_path/your_annotated_gps.rds" (from 02_wind_annotation.r), "meta_data.rds" (provided in Edmond repo)
-#output: "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds" (This file is also provided in the Edmond repository)
+#output: "imu_wind_laterality_bursts.rds" (This file is also provided in the Edmond repository)
 
 library(tidyverse)
 library(lubridate)
@@ -267,7 +267,7 @@ filtered_w_LI$laterality_dir_day <- factor(filtered_w_LI$laterality_dir_day, lev
 filtered_w_LI$laterality_dir_stage <- factor(filtered_w_LI$laterality_dir_stage, levels = c("right_handed", "ambidextrous", "left_handed"))
 
 #write to file. This file is also provided in the Edmond repository. It will be used in 04_data_analysis.r 
-saveRDS(filtered_w_LI, file = "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds")
+saveRDS(filtered_w_LI, file = "imu_wind_laterality_bursts.rds")
 
 #---------------------------------------------------------------------------------
 ## Step 6: Life stage descriptive summaries                                  #####
@@ -292,7 +292,7 @@ life_cycle <- readRDS("meta_data.rds") %>%
             migr_dur_sd = sd(migr_dur, na.rm = T))
 
 #tracking duration
-filtered_w_LI <- readRDS("thinned_laterality_w_gps_wind_all_filters2_public_prep.rds")
+filtered_w_LI <- readRDS("imu_wind_laterality_bursts.rds")
 
 mean(filtered_w_LI$days_since_tagging)
 sd(filtered_w_LI$days_since_tagging)

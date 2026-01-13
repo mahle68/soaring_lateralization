@@ -2,7 +2,7 @@
 # Data analysis is done at two scales: 8-second bursts (year-round) and daily (only during migration)
 # Elham Nourani, PhD. elham.nourani@unil.ch
 
-#inputs: "thinned_laterality_w_gps_wind_all_filters2_public_prep.rds" (from 03a_data_prep_bursts.r & available from the Edmond repository), "your_path/your_hourly_migration_metrics.rds" (from 03b_data_prep_days.r)
+#inputs: "imu_wind_laterality_bursts.rds" (from 03a_data_prep_bursts.r & available from the Edmond repository), "your_path/your_hourly_migration_metrics.rds" (from 03b_data_prep_days.r)
 #outputs: Fig 3 all panels. Extended Data Figure 1. Extended Data Table 1
 
 library(tidyverse)
