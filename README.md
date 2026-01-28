@@ -1,5 +1,4 @@
-[![DOI](https://zenodo.org/badge/18399784.svg)](https://zenodo.org/doi/10.5281/zenodo.18399784)
-
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18399784.svg)](https://doi.org/10.5281/zenodo.18399784)
 
 # soaring_lateralization
 Scripts for reproducing the results of Safi et al 2025
